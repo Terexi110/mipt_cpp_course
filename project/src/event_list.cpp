@@ -2,6 +2,10 @@
 
 namespace nano_edr {
 
+EventList::~EventList() {
+    ListClear(this);
+}
+
 void ListPushBack(EventList* list, const Event* event){
 
 }
