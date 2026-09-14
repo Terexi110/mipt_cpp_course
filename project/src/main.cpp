@@ -11,6 +11,7 @@
 //
 // Запуск:
 //   nano-edr <журнал.log>
+// 2.0
 #include <cstdio>
 #include <fstream>
 #include <print>
