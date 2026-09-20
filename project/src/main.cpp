@@ -16,14 +16,15 @@
 #include <print>
 #include <string>
 #include <vector>
-#include <sstream>
 #include <unordered_map>
+#include "parse.h"
+#include "event_list.h"
 
+using namespace nano_edr;
 
 int main(int argc, char** argv) {
-    // Аргументы разбираются грубо: путь к журналу и ничего больше. Остальное,
-    // включая --quiet, добавляется по заданию.
     bool quiet = false;
+    std::size_t window_size = 64;
     std::string log_path;
     if (argc < 2) {
         std::print(stderr, "использование: nano-edr <журнал.log>\n");
@@ -33,11 +34,16 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "--quiet") {
             quiet = true;
+        } else if (std::string(argv[i]) == "--window-size") {
+            window_size = std::stoull(argv[i + 1]);
+            ++i;
         } else if (log_path.empty()) {
             log_path = argv[i];
         }
     }
 
+    EventList window;
+    window.capacity = window_size;
     long long lines = 0;
     long long comments = 0;
     std::string line;
@@ -50,34 +56,39 @@ int main(int argc, char** argv) {
     }
 
     while (std::getline(log, line)) {
-        // Счётчик увеличивается до всех проверок: он считает строки файла,
-        // а не события. Номер, посчитанный по событиям, бесполезен — по нему
-        // нельзя открыть файл и посмотреть.
         ++lines;
 
-        // Строки-комментарии в журнале начинаются с '#'. Они не события,
-        // и детекта по ним быть не должно.
-        if (!line.empty() && line[0] == '#') {
+        if (IsBlankOrComment(&line)) {
             ++comments;
             continue;
         }
 
-        // >>> Здесь начинается занятие 1.1.
-        //
-        // Проверка признаков и печать детекта. Номер строки, который нужен
-        // в выводе, — это lines.
+        Event event;
+        if (!ParseEventLine(&line, &event))
+            continue;
+        types[event.type]++;
 
+        bool detected = false;
         for (auto &cur_sign : signs){
             if (line.find(cur_sign) != std::string::npos){
                 std::print("[DETECT] строка {}, признак {}: {}\n", lines, cur_sign, line);
+                detected = true;
             }
         }
-        std::string type = "-";
-        auto pos = line.find("type=");
-        size_t start = pos + 5;
-        size_t end = line.find(" ", start);
-        type = line.substr(start, end - start);
-        types[type]++;
+        if (detected && !quiet) {
+            if (window.size >= 2){
+                const EventNode* it = window.head;
+                for (std::size_t i = 0; i + 2 < window.size; ++i)
+                    it = it->next;
+                std::print("[CTX] -2: ts={} type={} pid={}\n", it->event.ts, it->event.type, it->event.pid);
+                it = it->next;
+                std::print("[CTX] -1: ts={} type={} pid={}\n", it->event.ts, it->event.type, it->event.pid);
+            } else if (window.size == 1){
+                std::print("[CTX] -1: ts={} type={} pid={}\n", window.head->event.ts, window.head->event.type, window.head->event.pid);
+            }
+        }
+
+        ListPushBack(&window, &event);
     }
 
     if (!quiet) {
