@@ -64,27 +64,30 @@ int main(int argc, char** argv) {
         }
 
         Event event;
-        if (!ParseEventLine(&line, &event))
+        if (!ParseEventLine(&line, &event)) {
             continue;
+        }
         types[event.type]++;
 
         bool detected = false;
-        for (auto &cur_sign : signs){
-            if (line.find(cur_sign) != std::string::npos){
+        for (auto &cur_sign : signs) {
+            if (line.find(cur_sign) != std::string::npos) {
                 std::print("[DETECT] строка {}, признак {}: {}\n", lines, cur_sign, line);
                 detected = true;
             }
         }
         if (detected && !quiet) {
-            if (window.size >= 2){
-                const EventNode* it = window.head;
-                for (std::size_t i = 0; i + 2 < window.size; ++i)
-                    it = it->next;
-                std::print("[CTX] -2: ts={} type={} pid={}\n", it->event.ts, it->event.type, it->event.pid);
-                it = it->next;
-                std::print("[CTX] -1: ts={} type={} pid={}\n", it->event.ts, it->event.type, it->event.pid);
-            } else if (window.size == 1){
-                std::print("[CTX] -1: ts={} type={} pid={}\n", window.head->event.ts, window.head->event.type, window.head->event.pid);
+            const EventNode* prev = nullptr;
+            const EventNode* curr = nullptr;
+            for (const EventNode* node = window.head; node != nullptr; node = node->next) {
+                prev = curr;
+                curr = node;
+            }
+            if (prev != nullptr) {
+                std::print("[CTX] -2: ts={} type={} pid={}\n", prev->event.ts, prev->event.type, prev->event.pid);
+            }
+            if (curr != nullptr) {
+                std::print("[CTX] -1: ts={} type={} pid={}\n", curr->event.ts, curr->event.type, curr->event.pid);
             }
         }
 

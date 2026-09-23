@@ -1,35 +1,24 @@
 #include <event_list.h>
 
-namespace nano_edr {
+using namespace nano_edr;
 
 EventList::~EventList() {
     ListClear(this);
 }
 
-void ListPushBack(EventList* list, const Event* event){
-    if (list->capacity > 0){
-        if (list->size == list->capacity){
-            ListPopFront(list);
-        }
-        list->size++;
-        EventNode* new_node = new EventNode{*event, nullptr};
-        if (list->head == nullptr){
-            list->head = new_node;
-            list->tail = new_node;
-        } else {
-            list->tail->next = new_node;
-            list->tail = new_node;
-        }
-    } else if (list->capacity == 0){
-        if (list->size == 0){
-            list->head = new EventNode{*event, nullptr};
-            list->tail = list->head;
-        } else {
-            list->tail->next = new EventNode{*event, nullptr};
-            list->tail = list->tail->next;
-        }
-        list->size++;
+void ListPushBack(EventList* list, const Event* event) {
+    if (list->capacity != 0 && list->size == list->capacity) {
+        ListPopFront(list);
     }
+
+    EventNode* new_node = new EventNode{.event = *event, .next = nullptr};
+    if (list->head == nullptr) {
+        list->head = new_node;
+    } else {
+        list->tail->next = new_node;
+    }
+    list->tail = new_node;
+    list->size++;
 }
 
 void ListPopFront(EventList* list){
@@ -46,8 +35,6 @@ void ListPopFront(EventList* list){
 
 void ListClear(EventList* list){
     while (list->head != nullptr){
-        ListPopFront(list);
+        nano_edr::ListPopFront(list);
     }    
-}
-
 }
