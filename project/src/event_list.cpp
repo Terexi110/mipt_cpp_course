@@ -1,6 +1,6 @@
 #include <event_list.h>
 
-using namespace nano_edr;
+namespace nano_edr{
 
 EventList::~EventList() {
     ListClear(this);
@@ -35,6 +35,8 @@ void ListPopFront(EventList* list){
 
 void ListClear(EventList* list){
     while (list->head != nullptr){
-        nano_edr::ListPopFront(list);
+        ListPopFront(list);
     }    
+}
+
 }

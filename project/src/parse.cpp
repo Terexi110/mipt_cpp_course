@@ -2,7 +2,7 @@
 #include <string>
 #include "event.h"
 
-using namespace nano_edr;
+namespace nano_edr {
 
 bool ParseEventLine(const std::string* line, Event* out) {
     if (IsBlankOrComment(line)) {
@@ -105,4 +105,6 @@ bool IsBlankOrComment(const std::string* line) {
         return true;
     }
     return (*line)[first] == '#' || (*line)[first] == ';';
+}
+
 }
