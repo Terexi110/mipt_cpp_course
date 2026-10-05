@@ -107,4 +107,4 @@ bool IsBlankOrComment(const std::string* line) {
     return (*line)[first] == '#' || (*line)[first] == ';';
 }
 
-}
+}  // namespace nano_edr
