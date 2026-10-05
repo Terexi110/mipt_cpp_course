@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <fstream>
+#include <memory>
 #include <print>
 #include <string>
 #include <unordered_map>
@@ -62,6 +63,16 @@ void PrintContext(const EventList& window) {
     }
 }
 
+class ContextPrinter {
+    public:
+        ContextPrinter(const EventList& window) : window_(window) {}
+        ~ContextPrinter() {
+            PrintContext(window_);
+        }
+    private:
+        const EventList& window_;
+};
+
 void PrintSummary(long long lines, long long comments, const std::unordered_map<std::string, int>& types) {
     std::print("строк {}, из них комментариев {}\n", lines, comments);
     std::print("всего событий: {}\n", lines - comments);
@@ -99,7 +110,7 @@ void ProcessLog(std::ifstream& log, const Config& config) {
 
         size_t detects = CheckRules(event, rules, rule_count);
         if (detects > 0 && !config.quiet) {
-            PrintContext(window);
+            auto printer = std::make_unique<ContextPrinter>(window); 
         }
 
         ListPushBack(&window, &event);
@@ -113,6 +124,7 @@ void ProcessLog(std::ifstream& log, const Config& config) {
 }  // namespace
 
 }  // namespace nano_edr
+
 
 int main(int argc, char** argv) {
     nano_edr::Config config;
