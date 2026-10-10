@@ -1,12 +1,14 @@
 #include <cstdio>
 #include <fstream>
-#include <memory>
 #include <print>
 #include <string>
 #include <unordered_map>
 
 #include "agent_rules.h"
+#include "event.h"
 #include "event_list.h"
+#include "os.h"
+#include "os_handle.h"
 #include "parse.h"
 #include "rules.h"
 
@@ -15,7 +17,122 @@ namespace nano_edr {
 struct Config {
     std::string log_path;
     bool quiet = false;
+    bool os_source = true;
     std::size_t window_size = 64;
+};
+
+void PrintContext(const EventList& window) {
+    const EventNode* prev = nullptr;
+    const EventNode* curr = nullptr;
+    for (const EventNode* node = window.head(); node != nullptr; node = node->next) {
+        prev = curr;
+        curr = node;
+    }
+    if (prev != nullptr) {
+        std::print("[CTX] -2: ts={} type={} pid={}\n", prev->event.raw_ts(), prev->event.type(), prev->event.pid());
+    }
+    if (curr != nullptr) {
+        std::print("[CTX] -1: ts={} type={} pid={}\n", curr->event.raw_ts(), curr->event.type(), curr->event.pid());
+    }
+}
+
+class Agent {
+ public:
+    Agent(std::size_t window_size, bool quiet) : window_(window_size), quiet_(quiet) {
+    }
+
+    void HandleEvent(const Event& event) {
+        types_[event.type()]++;
+        total_events_++;
+
+        size_t detect_count = CheckRules(event, AgentRules(), AgentRuleCount());
+        if (detect_count > 0 && !quiet_) {
+            PrintContext(window_);
+        }
+        window_.PushBack(event);
+    }
+
+    static void Trampoline(const os_event* ev, void* ctx) noexcept {
+        try {
+            auto* self = static_cast<Agent*>(ctx);
+            EventParts parst;
+            parst.ts = std::to_string(ev->ts);
+            parst.type = ev->type ? ev->type : "";
+            parst.pid = (ev->pid == 0) ? "" : std::to_string(ev->pid);
+            for (size_t i = 0; i < ev->field_count; ++i) {
+                parst.fields.push_back(Field{ev->fields[i].key, ev->fields[i].value});
+            }
+            Event event(parst);
+            self->HandleEvent(event);
+        } catch (...) {
+            // ...
+        }
+    }
+
+    void PrintSummary() const {
+        std::print("всего событий: {}\n", total_events_);
+        std::print("типы событий:\n");
+        for (const auto& [type, count] : types_) {
+            std::print("  {}: {}\n", type, count);
+        }
+    }
+
+ private:
+    EventList window_;
+    bool quiet_;
+    long long total_events_ = 0;
+    std::unordered_map<std::string, int> types_;
+};
+
+class OsSource {
+ public:
+    explicit OsSource(const std::string& config_path) : handle_(config_path) {}
+
+    void Run(Agent* agent) {
+        handle_.Subscribe(Agent::Trampoline, agent);
+        handle_.Start();
+
+        os_status status = OS_OK;
+        while ((status = handle_.Wait(1000)) == OS_TIMEOUT) {
+        }
+        if (status != OS_OK) {
+            throw std::runtime_error("ошибка источника: " + std::string(os_status_str(status)));
+        }
+    }
+
+ private:
+    OsHandle handle_;
+};
+
+class FileSource {
+ public:
+    explicit FileSource(const std::string& path) : path_(path) {}
+
+    void Run(Agent* agent) {
+        std::ifstream log(path_);
+        if (!log) {
+            throw std::runtime_error("не удалось открыть журнал: " + path_);
+        }
+
+        std::string line;
+        while (std::getline(log, line)) {
+            if (IsBlankOrComment(line)) {
+                continue;
+            }
+            EventParts parts;
+            if (!ParseEventParts(line, &parts)) {
+                continue;
+            }
+            try {
+                Event event(parts);
+                agent->HandleEvent(event);
+            } catch (const std::exception& e) {
+            }
+        }
+
+    }  // строка → EventParts → Event → HandleEvent
+ private:
+    std::string path_;
 };
 
 namespace {
@@ -36,95 +153,39 @@ bool ParseArgs(int argc, char** argv, Config& config) {
                 return false;
             }
             config.window_size = std::stoull(argv[++i]);
-        } else if (config.log_path.empty()) {
+        } else if (arg == "--file") {
+            if (i + 1 >= argc) {
+                std::print(stderr, "ошибка: отсутствует путь к файлу для --file\n");
+                return false;
+            }
+            if (!config.log_path.empty()) {
+                std::print(stderr, "ошибка: путь к файлу уже указан: {}\n", config.log_path);
+                return false;
+            }
+            config.log_path = argv[++i];
+            config.os_source = false;
+        } else if (!arg.starts_with('-')) {
+            if (!config.log_path.empty()) {
+                std::print(stderr, "ошибка: путь к файлу уже указан: {}\n", config.log_path);
+                return false;
+            }
             config.log_path = arg;
+        } else {
+            std::print(stderr, "ошибка: неизвестный аргумент {}\n", arg);
+            return false;
         }
     }
 
     if (config.log_path.empty()) {
-        std::print(stderr, "использование: nano-edr <журнал.log>\n");
+        std::print(stderr, "использование: nano-edr [--quiet] [--window-size N] [--file] <журнал.log>\n");
         return false;
     }
     return true;
 }
 
-void PrintContext(const EventList& window) {
-    const EventNode* prev = nullptr;
-    const EventNode* curr = nullptr;
-    for (const EventNode* node = window.head; node != nullptr; node = node->next) {
-        prev = curr;
-        curr = node;
-    }
-    if (prev != nullptr) {
-        std::print("[CTX] -2: ts={} type={} pid={}\n", prev->event.ts, prev->event.type, prev->event.pid);
-    }
-    if (curr != nullptr) {
-        std::print("[CTX] -1: ts={} type={} pid={}\n", curr->event.ts, curr->event.type, curr->event.pid);
-    }
-}
-
-class ContextPrinter {
-    public:
-        ContextPrinter(const EventList& window) : window_(window) {}
-        ~ContextPrinter() {
-            PrintContext(window_);
-        }
-    private:
-        const EventList& window_;
-};
-
-void PrintSummary(long long lines, long long comments, const std::unordered_map<std::string, int>& types) {
-    std::print("строк {}, из них комментариев {}\n", lines, comments);
-    std::print("всего событий: {}\n", lines - comments);
-    std::print("типы событий:\n");
-    for (const auto& [type, count] : types) {
-        std::print("  {}: {}\n", type, count);
-    }
-}
-
-void ProcessLog(std::ifstream& log, const Config& config) {
-    EventList window;
-    window.capacity = config.window_size;
-
-    long long lines = 0;
-    long long comments = 0;
-    std::string line;
-    std::unordered_map<std::string, int> types;
-
-    const Rule* rules = AgentRules();
-    const size_t rule_count = AgentRuleCount();
-
-    while (std::getline(log, line)) {
-        ++lines;
-
-        if (IsBlankOrComment(&line)) {
-            ++comments;
-            continue;
-        }
-
-        Event event;
-        if (!ParseEventLine(&line, &event)) {
-            continue;
-        }
-        types[event.type]++;
-
-        size_t detects = CheckRules(event, rules, rule_count);
-        if (detects > 0 && !config.quiet) {
-            auto printer = std::make_unique<ContextPrinter>(window); 
-        }
-
-        ListPushBack(&window, &event);
-    }
-
-    if (!config.quiet) {
-        PrintSummary(lines, comments, types);
-    }
-}
-
 }  // namespace
 
 }  // namespace nano_edr
-
 
 int main(int argc, char** argv) {
     nano_edr::Config config;
@@ -132,14 +193,18 @@ int main(int argc, char** argv) {
         return 2;
     }
 
-    std::ifstream log(config.log_path);
-    if (!log) {
-        std::print(stderr, "не удалось открыть журнал: {}\n", config.log_path);
-        return 2;
-    }
-
     try {
-        nano_edr::ProcessLog(log, config);
+        nano_edr::Agent agent(config.window_size, config.quiet);
+        if (config.os_source) {
+            nano_edr::OsSource source(config.log_path);
+            source.Run(&agent);
+        } else {
+            nano_edr::FileSource source(config.log_path);
+            source.Run(&agent);
+        }
+        if (!config.quiet) {
+            agent.PrintSummary();
+        }
     } catch (const std::exception& e) {
         std::print(stderr, "ошибка: {}\n", e.what());
         return 1;
