@@ -12,16 +12,12 @@ Event::Event(const EventParts& parts) : raw_ts_(parts.ts), type_(parts.type), pi
     if (type_.empty()) {
         throw std::invalid_argument("type пусто");
     }
-    try {
-        uint64_t ms = 0;
-        auto [ptr, ec] = std::from_chars(raw_ts_.data(), raw_ts_.data() + raw_ts_.size(), ms);
-        if (ec != std::errc() || ptr != raw_ts_.data() + raw_ts_.size()) {
-            throw std::invalid_argument("ts неправильный формат: " + raw_ts_);
-        }
-        ts_ = Timestamp{ms};
-    } catch (const std::exception&) {
-        throw std::invalid_argument("ошибка разбора ts: " + raw_ts_);
+    uint64_t ms = 0;
+    auto [ptr, ec] = std::from_chars(raw_ts_.data(), raw_ts_.data() + raw_ts_.size(), ms);
+    if (ec != std::errc() || ptr != raw_ts_.data() + raw_ts_.size()) {
+        throw std::invalid_argument("ts неправильный формат: " + raw_ts_);
     }
+    ts_ = Timestamp{ms};
 }
 
 std::string ToString(const Event& event) {

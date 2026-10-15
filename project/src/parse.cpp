@@ -89,10 +89,6 @@ bool ParseEventParts(const std::string& line, EventParts* out) {
         return false;
     }
 
-    // if (ts.empty() || type.empty()) {
-    //     return false;
-    // }
-
     out->ts = std::move(ts);
     out->type = std::move(type);
     out->pid = std::move(pid);

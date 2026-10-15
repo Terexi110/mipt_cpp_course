@@ -1,16 +1,9 @@
 #include <cstdio>
-#include <fstream>
+#include <cstring>
 #include <print>
 #include <string>
-#include <unordered_map>
 
-#include "agent_rules.h"
-#include "event.h"
-#include "event_list.h"
-#include "os.h"
-#include "os_handle.h"
-#include "parse.h"
-#include "rules.h"
+#include "sources.h"
 
 namespace nano_edr {
 
@@ -19,120 +12,6 @@ struct Config {
     bool quiet = false;
     bool os_source = true;
     std::size_t window_size = 64;
-};
-
-void PrintContext(const EventList& window) {
-    const EventNode* prev = nullptr;
-    const EventNode* curr = nullptr;
-    for (const EventNode* node = window.head(); node != nullptr; node = node->next) {
-        prev = curr;
-        curr = node;
-    }
-    if (prev != nullptr) {
-        std::print("[CTX] -2: ts={} type={} pid={}\n", prev->event.raw_ts(), prev->event.type(), prev->event.pid());
-    }
-    if (curr != nullptr) {
-        std::print("[CTX] -1: ts={} type={} pid={}\n", curr->event.raw_ts(), curr->event.type(), curr->event.pid());
-    }
-}
-
-class Agent {
- public:
-    Agent(std::size_t window_size, bool quiet) : window_(window_size), quiet_(quiet) {
-    }
-
-    void HandleEvent(const Event& event) {
-        types_[event.type()]++;
-        total_events_++;
-
-        size_t detect_count = CheckRules(event, AgentRules(), AgentRuleCount());
-        if (detect_count > 0 && !quiet_) {
-            PrintContext(window_);
-        }
-        window_.PushBack(event);
-    }
-
-    static void Trampoline(const os_event* ev, void* ctx) noexcept {
-        try {
-            auto* self = static_cast<Agent*>(ctx);
-            EventParts parst;
-            parst.ts = std::to_string(ev->ts);
-            parst.type = ev->type ? ev->type : "";
-            parst.pid = (ev->pid == 0) ? "" : std::to_string(ev->pid);
-            for (size_t i = 0; i < ev->field_count; ++i) {
-                parst.fields.push_back(Field{ev->fields[i].key, ev->fields[i].value});
-            }
-            Event event(parst);
-            self->HandleEvent(event);
-        } catch (...) {
-            // ...
-        }
-    }
-
-    void PrintSummary() const {
-        std::print("всего событий: {}\n", total_events_);
-        std::print("типы событий:\n");
-        for (const auto& [type, count] : types_) {
-            std::print("  {}: {}\n", type, count);
-        }
-    }
-
- private:
-    EventList window_;
-    bool quiet_;
-    long long total_events_ = 0;
-    std::unordered_map<std::string, int> types_;
-};
-
-class OsSource {
- public:
-    explicit OsSource(const std::string& config_path) : handle_(config_path) {}
-
-    void Run(Agent* agent) {
-        handle_.Subscribe(Agent::Trampoline, agent);
-        handle_.Start();
-
-        os_status status = OS_OK;
-        while ((status = handle_.Wait(1000)) == OS_TIMEOUT) {
-        }
-        if (status != OS_OK) {
-            throw std::runtime_error("ошибка источника: " + std::string(os_status_str(status)));
-        }
-    }
-
- private:
-    OsHandle handle_;
-};
-
-class FileSource {
- public:
-    explicit FileSource(const std::string& path) : path_(path) {}
-
-    void Run(Agent* agent) {
-        std::ifstream log(path_);
-        if (!log) {
-            throw std::runtime_error("не удалось открыть журнал: " + path_);
-        }
-
-        std::string line;
-        while (std::getline(log, line)) {
-            if (IsBlankOrComment(line)) {
-                continue;
-            }
-            EventParts parts;
-            if (!ParseEventParts(line, &parts)) {
-                continue;
-            }
-            try {
-                Event event(parts);
-                agent->HandleEvent(event);
-            } catch (const std::exception& e) {
-            }
-        }
-
-    }  // строка → EventParts → Event → HandleEvent
- private:
-    std::string path_;
 };
 
 namespace {
@@ -152,7 +31,12 @@ bool ParseArgs(int argc, char** argv, Config& config) {
                 std::print(stderr, "ошибка: отсутствует значение для --window-size\n");
                 return false;
             }
-            config.window_size = std::stoull(argv[++i]);
+            const char* value = argv[++i];
+            auto [ptr, ec] = std::from_chars(value, value + std::strlen(value), config.window_size);
+            if (ec != std::errc()) {
+                std::print(stderr, "ошибка: неверное значение для --window-size: {}\n", argv[i]);
+                return false;
+            }
         } else if (arg == "--file") {
             if (i + 1 >= argc) {
                 std::print(stderr, "ошибка: отсутствует путь к файлу для --file\n");
