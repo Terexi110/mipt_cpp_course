@@ -3,7 +3,8 @@
 #include <print>
 #include <string>
 
-#include "sources.h"
+#include "file_source.h"
+#include "os_source.h"
 
 namespace nano_edr {
 

@@ -1,6 +1,7 @@
 #ifndef NANO_EDR_AGENT_H
 #define NANO_EDR_AGENT_H
 
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -20,8 +21,14 @@ class Agent {
 
     void PrintSummary() const;
 
+    void RecordError();
+
  private:
+    void PrintContext(const Event* previous, const EventList& window);
+
+    std::size_t error_events_ = 0;
     EventList window_;
+    std::optional<Event> previous_event_;
     bool quiet_ = false;
     std::size_t total_events_ = 0;
     std::unordered_map<std::string, std::size_t> types_;

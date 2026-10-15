@@ -1,6 +1,5 @@
 #include "agent.h"
 
-#include <iostream>
 #include <print>
 #include <string>
 
@@ -28,21 +27,6 @@ Event MakeEventFromOs(const os_event* ev) {
 
 }  // namespace
 
-void PrintContext(const EventList& window) {
-    const EventNode* prev = nullptr;
-    const EventNode* curr = nullptr;
-    for (const EventNode* node = window.head(); node != nullptr; node = node->next) {
-        prev = curr;
-        curr = node;
-    }
-    if (prev != nullptr) {
-        std::print("[CTX] -2: ts={} type={} pid={}\n", prev->event.raw_ts(), prev->event.type(), prev->event.pid());
-    }
-    if (curr != nullptr) {
-        std::print("[CTX] -1: ts={} type={} pid={}\n", curr->event.raw_ts(), curr->event.type(), curr->event.pid());
-    }
-}
-
 Agent::Agent(std::size_t window_size, bool quiet) : window_(window_size), quiet_(quiet) {}
 
 void Agent::HandleEvent(const Event& event) {
@@ -51,7 +35,13 @@ void Agent::HandleEvent(const Event& event) {
 
     size_t detect_count = CheckRules(event, AgentRules(), AgentRuleCount());
     if (detect_count > 0 && !quiet_) {
-        PrintContext(window_);
+        PrintContext(previous_event_ ? &*previous_event_ : nullptr, window_);
+    }
+    const EventNode* last = window_.back();
+    if (last != nullptr) {
+        previous_event_ = last->event;
+    } else {
+        previous_event_.reset();
     }
     window_.PushBack(event);
 }
@@ -62,15 +52,33 @@ void Agent::Trampoline(const os_event* ev, void* ctx) noexcept {
         Event event = MakeEventFromOs(ev);
         self->HandleEvent(event);
     } catch (const std::exception& e) {
-        std::cerr << "ошибка обработки события: " << e.what() << std::endl;
+        std::print(stderr, "ошибка обработки события: {}\n", e.what());
+        if (ctx != nullptr) {
+            static_cast<Agent*>(ctx)->RecordError();
+        }
     }
 }
 
 void Agent::PrintSummary() const {
     std::print("всего событий: {}\n", total_events_);
+    std::print("ошибок обработки: {}\n", error_events_);
     std::print("типы событий:\n");
     for (const auto& [type, count] : types_) {
         std::print("  {}: {}\n", type, count);
+    }
+}
+
+void Agent::RecordError() {
+    error_events_++;
+}
+
+void Agent::PrintContext(const Event* previous, const EventList& window) {
+    const EventNode* last = window.back();
+    if (previous != nullptr && window.size() > 1) {
+        std::print("[CTX] -2: ts={} type={} pid={}\n", previous->raw_ts(), previous->type(), previous->pid());
+    }
+    if (last != nullptr) {
+        std::print("[CTX] -1: ts={} type={} pid={}\n", last->event.raw_ts(), last->event.type(), last->event.pid());
     }
 }
 

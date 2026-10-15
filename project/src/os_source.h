@@ -1,5 +1,5 @@
-#ifndef NANO_EDR_SOURCES_H
-#define NANO_EDR_SOURCES_H
+#ifndef NANO_EDR_OS_SOURCES_H
+#define NANO_EDR_OS_SOURCES_H
 
 #include <string>
 
@@ -18,16 +18,6 @@ class OsSource {
     OsHandle handle_;
 };
 
-class FileSource {
- public:
-    explicit FileSource(const std::string& path);
-
-    void Run(Agent* agent);
-
- private:
-    std::string path_;
-};
-
 }  // namespace nano_edr
 
-#endif  // NANO_EDR_SOURCES_H
+#endif  // NANO_EDR_OS_SOURCES_H
