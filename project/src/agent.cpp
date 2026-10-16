@@ -47,14 +47,14 @@ void Agent::HandleEvent(const Event& event) {
 }
 
 void Agent::Trampoline(const os_event* ev, void* ctx) noexcept {
+    auto* self = static_cast<Agent*>(ctx);
     try {
-        auto* self = static_cast<Agent*>(ctx);
         Event event = MakeEventFromOs(ev);
         self->HandleEvent(event);
     } catch (const std::exception& e) {
         std::print(stderr, "ошибка обработки события: {}\n", e.what());
         if (ctx != nullptr) {
-            static_cast<Agent*>(ctx)->RecordError();
+            self->RecordError();
         }
     }
 }
