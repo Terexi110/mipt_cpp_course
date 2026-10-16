@@ -18,10 +18,10 @@ bool MatchesImage(const Event& event, const std::string& name1, const std::strin
 }
 
 const std::string* GetTargetFilePath(const Event& event) {
-    if (event.type == "file_move") {
+    if (event.type() == "file_move") {
         return FindField(event, "to");
     }
-    if (event.type == "file_create" || event.type == "file_write") {
+    if (event.type() == "file_create" || event.type() == "file_write") {
         return FindField(event, "path");
     }
     return nullptr;
