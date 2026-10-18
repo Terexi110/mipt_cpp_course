@@ -1,10 +1,10 @@
-#include "agent.h"
-
 #include <print>
 #include <string>
 
 #include "agent_rules.h"
 #include "event.h"
+#include "agent.h"
+#include "rule.h"
 #include "rules.h"
 
 namespace nano_edr {
@@ -27,13 +27,21 @@ Event MakeEventFromOs(const os_event* ev) {
 
 }  // namespace
 
-Agent::Agent(std::size_t window_size, bool quiet) : window_(window_size), quiet_(quiet) {}
+Agent::Agent(std::size_t window_size, bool quiet) : window_(window_size), rules_(BuildAgentRules()), quiet_(quiet) {}
 
 void Agent::HandleEvent(const Event& event) {
     types_[event.type()]++;
     total_events_++;
 
-    size_t detect_count = CheckRules(event, AgentRules(), AgentRuleCount());
+    size_t detect_count = 0;
+    for (auto& rule : rules_) {
+        if (rule.Check(event)) {
+            std::print("[DETECT] {}  {}  ts={} pid={}\n",
+                        SeverityName(rule.severity()), rule.id(), event.raw_ts(), event.pid());
+            ++detect_count;
+        }
+    }
+    
     if (detect_count > 0 && !quiet_) {
         PrintContext(previous_event_ ? &*previous_event_ : nullptr, window_);
     }
@@ -65,6 +73,10 @@ void Agent::PrintSummary() const {
     std::print("типы событий:\n");
     for (const auto& [type, count] : types_) {
         std::print("  {}: {}\n", type, count);
+    }
+    std::print("правила, детектов:\n");
+    for (const auto& rule : rules_) {
+        std::print("  {}  {}\n", rule.id(), rule.hits());
     }
 }
 

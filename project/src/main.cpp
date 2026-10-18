@@ -87,6 +87,9 @@ int main(int argc, char** argv) {
             nano_edr::FileSource source(config.log_path);
             source.Run(&agent);
         }
+        if (!config.quiet) {
+            agent.PrintSummary();
+        }
     } catch (const std::exception& e) {
         std::print(stderr, "ошибка: {}\n", e.what());
         return 1;

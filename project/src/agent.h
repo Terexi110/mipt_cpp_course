@@ -8,6 +8,7 @@
 #include "event.h"
 #include "event_list.h"
 #include "os.h"
+#include "rule.h"
 
 namespace nano_edr {
 
@@ -29,6 +30,7 @@ class Agent {
     std::size_t error_events_ = 0;
     EventList window_;
     std::optional<Event> previous_event_;
+    std::vector<MatchRule> rules_;
     bool quiet_ = false;
     std::size_t total_events_ = 0;
     std::unordered_map<std::string, std::size_t> types_;
