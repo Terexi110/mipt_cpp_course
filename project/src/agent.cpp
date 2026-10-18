@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <print>
 #include <string>
 
@@ -32,19 +33,19 @@ Agent::Agent(std::size_t window_size, bool quiet) : window_(window_size), rules_
 void Agent::HandleEvent(const Event& event) {
     types_[event.type()]++;
     total_events_++;
-
-    size_t detect_count = 0;
+    
+    bool context_printed = false;
     for (auto& rule : rules_) {
         if (rule.Check(event)) {
+            if (!context_printed && !quiet_) {
+                PrintContext(previous_event_ ? &*previous_event_ : nullptr, window_);
+                context_printed = true;
+            }
             std::print("[DETECT] {}  {}  ts={} pid={}\n",
                         SeverityName(rule.severity()), rule.id(), event.raw_ts(), event.pid());
-            ++detect_count;
         }
     }
     
-    if (detect_count > 0 && !quiet_) {
-        PrintContext(previous_event_ ? &*previous_event_ : nullptr, window_);
-    }
     const EventNode* last = window_.back();
     if (last != nullptr) {
         previous_event_ = last->event;
@@ -55,15 +56,19 @@ void Agent::HandleEvent(const Event& event) {
 }
 
 void Agent::Trampoline(const os_event* ev, void* ctx) noexcept {
+    if (ctx == nullptr) {
+        return;
+    }
     auto* self = static_cast<Agent*>(ctx);
     try {
         Event event = MakeEventFromOs(ev);
         self->HandleEvent(event);
     } catch (const std::exception& e) {
         std::print(stderr, "ошибка обработки события: {}\n", e.what());
-        if (ctx != nullptr) {
-            self->RecordError();
-        }
+        self->RecordError();
+    } catch (...) {
+        std::print(stderr, "неизвестная ошибка\n");
+        self->RecordError();
     }
 }
 
