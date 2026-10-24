@@ -18,6 +18,18 @@ Event::Event(const EventParts& parts) : raw_ts_(parts.ts), type_(parts.type), pi
         throw std::invalid_argument("ts неправильный формат: " + raw_ts_);
     }
     ts_ = Timestamp{ms};
+    event_type_ = EventTypeFromString(type_);
+}
+
+EventType EventTypeFromString(const std::string& type) {
+    if (type == "process_start") return EventType::kProcessStart;
+    if (type == "process_end")   return EventType::kProcessEnd;
+    if (type == "file_create")   return EventType::kFileCreate;
+    if (type == "file_write")    return EventType::kFileWrite;
+    if (type == "file_delete")   return EventType::kFileDelete;
+    if (type == "file_move")     return EventType::kFileMove;
+    if (type == "net_connect")   return EventType::kNetConnect;
+    return EventType::kOther;
 }
 
 std::string ToString(const Event& event) {

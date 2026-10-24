@@ -3,16 +3,18 @@
 
 #include <string>
 
-#include "agent.h"
 #include "os_handle.h"
+#include "event_source.h"
 
 namespace nano_edr {
 
-class OsSource {
+class OsSource : public IEventSource {
  public:
     explicit OsSource(const std::string& config_path);
 
-    void Run(Agent* agent);
+    void Run(IEventHandler* agent);
+
+    static void Trampoline(const os_event* ev, void* ctx) noexcept;
 
  private:
     OsHandle handle_;
