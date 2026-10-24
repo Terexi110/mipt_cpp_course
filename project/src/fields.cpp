@@ -7,6 +7,8 @@
 #include <stdexcept>
 #include <string>
 
+#include "text.h"
+
 namespace nano_edr {
 
 // ---------------------------------------------------------------------------
@@ -123,24 +125,12 @@ std::string NormalizePath(const std::string& path) {
 
 bool PathEndsWith(const Event& event, const std::string& suffix) {
     const std::string* path = FindField(event, "path");
-    if (!path) {
-        return false;
-    }
-
-    std::string norm_path = NormalizePath(*path);
-    std::string norm_suffix = NormalizePath(suffix);
-    return norm_path.ends_with(norm_suffix);
+    return path && EndsWithIgnoreCase(*path, suffix);
 }
 
 bool CommandLineContains(const Event& event, const std::string& needle) {
     const std::string* cmdline = FindField(event, "cmdline");
-    if (!cmdline) {
-        return false;
-    }
-
-    std::string norm_cmdline = NormalizePath(*cmdline);
-    std::string norm_needle = NormalizePath(needle);
-    return norm_cmdline.find(norm_needle) != std::string::npos;
+    return cmdline && ContainsIgnoreCase(*cmdline, needle);
 }
 
 }  // namespace nano_edr

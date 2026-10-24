@@ -26,13 +26,11 @@
 #ifndef NANO_EDR_AGENT_RULES_H
 #define NANO_EDR_AGENT_RULES_H
 
-#include "rules.h"
+#include "rule_engine.h"
 
 namespace nano_edr {
 
-// Таблица правил агента и её длина — ровно то, что принимает CheckRules.
-const Rule* AgentRules();
-size_t AgentRuleCount();
+RuleEngine BuildAgentRules();
 
 }  // namespace nano_edr
 
