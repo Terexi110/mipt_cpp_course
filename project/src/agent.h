@@ -5,7 +5,6 @@
 #include <string>
 #include <unordered_map>
 
-#include "os.h"
 #include "event.h"
 #include "event_list.h"
 #include "rule_engine.h"
