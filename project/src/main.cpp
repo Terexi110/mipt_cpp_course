@@ -1,10 +1,16 @@
+#include <charconv>
 #include <cstdio>
 #include <cstring>
+#include <memory>
+#include <optional>
 #include <print>
 #include <string>
 
-#include "file_source.h"
-#include "os_source.h"
+#include "agent.h"
+#include "event_source.h" 
+#include "file_source.h" 
+#include "os_source.h" 
+#include "limit_handler.h"
 
 namespace nano_edr {
 
@@ -13,6 +19,7 @@ struct Config {
     bool quiet = false;
     bool os_source = true;
     std::size_t window_size = 64;
+    std::optional<std::size_t> max_events;
 };
 
 namespace {
@@ -34,7 +41,7 @@ bool ParseArgs(int argc, char** argv, Config& config) {
             }
             const char* value = argv[++i];
             auto [ptr, ec] = std::from_chars(value, value + std::strlen(value), config.window_size);
-            if (ec != std::errc()) {
+            if (ec != std::errc() || ptr != value + std::strlen(value)) {
                 std::print(stderr, "ошибка: неверное значение для --window-size: {}\n", argv[i]);
                 return false;
             }
@@ -49,6 +56,19 @@ bool ParseArgs(int argc, char** argv, Config& config) {
             }
             config.log_path = argv[++i];
             config.os_source = false;
+        } else if (arg == "--max-events") {
+            if (i + 1 >= argc) {
+                std::print(stderr, "ошибка: отсутствует значение для --max-events\n");
+                return false;
+            }
+            const char* value = argv[++i];
+            std::size_t count = 0;
+            auto [ptr, ec] = std::from_chars(value, value + std::strlen(value), count);
+            if (ec != std::errc() || ptr != value + std::strlen(value)) {
+                std::print(stderr, "ошибка: неверное значение для --max-events: {}\n", argv[i]);
+                return false;
+            }
+            config.max_events = count;
         } else if (!arg.starts_with('-')) {
             if (!config.log_path.empty()) {
                 std::print(stderr, "ошибка: путь к файлу уже указан: {}\n", config.log_path);
@@ -80,15 +100,29 @@ int main(int argc, char** argv) {
 
     try {
         nano_edr::Agent agent(config.window_size, config.quiet);
-        if (config.os_source) {
-            nano_edr::OsSource source(config.log_path);
-            source.Run(&agent);
-        } else {
-            nano_edr::FileSource source(config.log_path);
-            source.Run(&agent);
+
+        std::unique_ptr<nano_edr::IEventSource> source;
+        std::unique_ptr<nano_edr::LimitHandler> limit_handler;
+        nano_edr::IEventHandler* handler = &agent;
+
+        if (config.max_events.has_value()) {
+            limit_handler = std::make_unique<nano_edr::LimitHandler>(handler, *config.max_events);
+            handler = limit_handler.get();
         }
+
+        if (config.os_source) {
+            source = std::make_unique<nano_edr::OsSource>(config.log_path);
+        } else {
+            source = std::make_unique<nano_edr::FileSource>(config.log_path);
+        }
+
+        source->Run(handler);
+
         if (!config.quiet) {
             agent.PrintSummary();
+            if (limit_handler) {
+                std::print("отброшено событий: {}\n", limit_handler->dropped());
+            }
         }
     } catch (const std::exception& e) {
         std::print(stderr, "ошибка: {}\n", e.what());
