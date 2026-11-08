@@ -18,7 +18,6 @@ struct Config {
     std::string log_path;
     bool quiet = false;
     bool os_source = true;
-    std::size_t window_size = 64;
     std::optional<std::size_t> max_events;
 };
 
@@ -34,17 +33,6 @@ bool ParseArgs(int argc, char** argv, Config& config) {
         const std::string arg = argv[i];
         if (arg == "--quiet") {
             config.quiet = true;
-        } else if (arg == "--window-size") {
-            if (i + 1 >= argc) {
-                std::print(stderr, "ошибка: отсутствует значение для --window-size\n");
-                return false;
-            }
-            const char* value = argv[++i];
-            auto [ptr, ec] = std::from_chars(value, value + std::strlen(value), config.window_size);
-            if (ec != std::errc() || ptr != value + std::strlen(value)) {
-                std::print(stderr, "ошибка: неверное значение для --window-size: {}\n", argv[i]);
-                return false;
-            }
         } else if (arg == "--file") {
             if (i + 1 >= argc) {
                 std::print(stderr, "ошибка: отсутствует путь к файлу для --file\n");
@@ -99,7 +87,7 @@ int main(int argc, char** argv) {
     }
 
     try {
-        nano_edr::Agent agent(config.window_size, config.quiet);
+        nano_edr::Agent agent(config.quiet);
 
         std::unique_ptr<nano_edr::IEventSource> source;
         std::unique_ptr<nano_edr::LimitHandler> limit_handler;

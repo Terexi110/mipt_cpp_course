@@ -8,6 +8,8 @@
 #include "event.h"
 #include "rule.h"
 #include "rules.h"
+#include "make_rule.h"
+#include "combinators.h"
 
 namespace nano_edr {
 
@@ -135,6 +137,28 @@ std::unique_ptr<SequenceRule> BuildScriptHostBeaconRule() {
     return beacon;
 }
 
+std::unique_ptr<ThresholdRule<128>> BuildThresholdRule() {
+    auto mass_write = MakeRule<ThresholdRule<128>>(
+        "ransomware_mass_write", Severity::kCritical,
+        20,     
+        10000,  
+        "pid");  
+    mass_write->SetCondition(MakeCondition(AllOfStatic(
+        EventTypeIs({EventType::kFileCreate, EventType::kFileWrite,
+                    EventType::kFileMove}))));
+    mass_write->AddAction("kill_process");
+    mass_write->AddAction("quarantine_file");
+    mass_write->SetCondition(MakeCondition(AllOfStatic(
+    EventTypeIs({EventType::kFileCreate, EventType::kFileWrite,
+                 EventType::kFileMove}),
+    AnyOfStatic(FieldContains("path", "\\Documents\\"),
+                FieldContains("path", "\\Desktop\\"),
+                FieldContains("to", "\\Documents\\"),
+                FieldContains("to", "\\Desktop\\")
+                ))));    
+    return mass_write;
+}
+
 }  // namespace
 
 RuleEngine BuildAgentRules() {
@@ -145,6 +169,7 @@ RuleEngine BuildAgentRules() {
     engine.AddRule(BuildAutostartWritePathRule());
     engine.AddRule(BuildRansomExtensionPathRule());
     engine.AddRule(BuildScriptHostBeaconRule()); 
+    engine.AddRule(BuildThresholdRule());
     return engine;
 }
 

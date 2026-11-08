@@ -1,19 +1,28 @@
 #ifndef NANO_EDR_AGENT_H
 #define NANO_EDR_AGENT_H
 
-#include <optional>
+#include <cstddef>
 #include <string>
 #include <unordered_map>
 
 #include "event.h"
-#include "event_list.h"
-#include "rule_engine.h"
 #include "event_source.h"
+#include "ring_buffer.h"
+#include "rule_engine.h"
 
 namespace nano_edr {
 
+struct WindowEntry {
+    Timestamp ts;
+    std::string type;
+    std::string pid;
+};
+
 class Agent : public IEventHandler {
  public:
+    static constexpr std::size_t kWindowCapacity = 256;
+    explicit Agent(bool quiet);
+
     void HandleEvent(const Event& event) override;
 
     void OnSkipped() override;
@@ -21,15 +30,12 @@ class Agent : public IEventHandler {
 
     void OnTick() override;
 
-    Agent(std::size_t window_size, bool quiet);
-
     void PrintSummary() const;
 
  private:
-    void PrintContext(const Event* previous, const EventList& window);
+    void PrintContext();
 
-    EventList window_;
-    std::optional<Event> previous_event_;
+    RingBuffer<WindowEntry, kWindowCapacity> window_;
     RuleEngine engine_;
     bool quiet_ = false;
     std::size_t total_events_ = 0;
