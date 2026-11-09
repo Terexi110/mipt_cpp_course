@@ -43,6 +43,15 @@ bool SequenceRule::Check(const Event& event) {
 
     const uint64_t current_ts = event.ts().ms;
 
+    auto it = pending_.begin();
+    while (it != pending_.end()) {
+        if (current_ts < it->ts_ms || (current_ts - it->ts_ms <= window_ms_)) {
+            ++it;
+        } else {
+            it = pending_.erase(it);
+        }
+    }
+
     std::vector<Pending> fresh;
     for (const auto& p : pending_) {
         if (current_ts < p.ts_ms || (current_ts - p.ts_ms <= window_ms_)) {
