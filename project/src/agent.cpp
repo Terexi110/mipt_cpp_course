@@ -1,10 +1,11 @@
+#include "agent.h"
+
 #include <cstddef>
 #include <print>
 #include <string>
 
 #include "agent_rules.h"
 #include "event.h"
-#include "agent.h"
 #include "rule.h"
 #include "rules.h"
 
@@ -38,13 +39,13 @@ void Agent::HandleEvent(const Event& event) {
 
     for (const IRule* rule : fired) {
         std::print("[DETECT] {}  {}  ts={} pid={}\n",
-            SeverityName(rule->severity()), rule->id(), event.raw_ts(), event.pid());
+                   SeverityName(rule->severity()), rule->id(), event.raw_ts(), event.pid());
     }
 
     window_.PushBack(WindowEntry{
         .ts = event.ts(),
-        .type = std::string(event.type()),
-        .pid = std::string(event.pid()),
+        .type = event.type(),
+        .pid = event.pid(),
     });
 }
 
@@ -52,7 +53,6 @@ void Agent::PrintSummary() const {
     std::print("всего событий: {}\n", total_events_);
     std::print("пропущено (пустые/комментарии): {}\n", skipped_events_);
     std::print("ошибок/битых событий: {}\n", broken_events_);
-    std::print("ошибок обработки: {}\n", broken_events_);
     std::print("типы событий:\n");
     for (const auto& [type, count] : types_) {
         std::print("  {}: {}\n", type, count);

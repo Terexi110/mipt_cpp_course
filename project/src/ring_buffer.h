@@ -56,6 +56,7 @@ class RingBuffer {
         bool operator!=(const Iterator& other) const {
             return index_ != other.index_;
         }
+
      private:
         const RingBuffer* buffer_ = nullptr;
         std::size_t index_ = 0;
@@ -69,20 +70,18 @@ class RingBuffer {
         } else {
             ++size_;
         }
-        buffer_[tail_] = value;
-        tail_ = (tail_ + 1) % capacity();
+        buffer_[(head_ + size_ - 1) % capacity()] = value;
     }
 
     void Clear() {
         size_ = 0;
         head_ = 0;
-        tail_ = 0;
     }
 
-    std::size_t size() const {return size_;}
+    std::size_t size() const { return size_; }
     static constexpr std::size_t capacity() { return N; }
     bool empty() const { return size_ == 0; }
-    bool full() const { return size_ == capacity_; }
+    bool full() const { return size_ == N; }
 
     // По логическому индексу: 0 — самый старый.
     const T& operator[](std::size_t index) const {
@@ -104,10 +103,8 @@ class RingBuffer {
 
  private:
     std::size_t size_ = 0;
-    std::size_t capacity_ = N;
     std::array<T, N> buffer_{};
     std::size_t head_ = 0;
-    std::size_t tail_ = 0;
 };
 
 }  // namespace nano_edr

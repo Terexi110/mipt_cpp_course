@@ -1,4 +1,5 @@
 #include "rule_engine.h"
+
 #include <cstddef>
 
 namespace nano_edr {
@@ -20,4 +21,4 @@ std::size_t RuleEngine::ProcessEvent(const Event& event, std::vector<const IRule
     return counter_hist;
 }
 
-}
+}  // namespace nano_edr

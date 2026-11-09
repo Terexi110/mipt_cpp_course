@@ -7,10 +7,10 @@
 #include <string>
 
 #include "agent.h"
-#include "event_source.h" 
-#include "file_source.h" 
-#include "os_source.h" 
+#include "event_source.h"
+#include "file_source.h"
 #include "limit_handler.h"
+#include "os_source.h"
 
 namespace nano_edr {
 

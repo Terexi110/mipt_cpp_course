@@ -1,8 +1,9 @@
-#include <fstream>
-#include <stdexcept>
-#include <print>
-
 #include "file_source.h"
+
+#include <fstream>
+#include <print>
+#include <stdexcept>
+
 #include "agent.h"
 #include "parse.h"
 

@@ -2,6 +2,7 @@
 #define NANO_EDR_FILE_SOURCES_H
 
 #include <string>
+
 #include "event_source.h"
 
 namespace nano_edr {

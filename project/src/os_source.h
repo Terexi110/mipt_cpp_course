@@ -3,8 +3,8 @@
 
 #include <string>
 
-#include "os_handle.h"
 #include "event_source.h"
+#include "os_handle.h"
 
 namespace nano_edr {
 

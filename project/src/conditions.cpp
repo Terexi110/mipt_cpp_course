@@ -1,6 +1,7 @@
+#include "conditions.h"
+
 #include <utility>
 
-#include "conditions.h"
 #include "fields.h"
 #include "text.h"
 
@@ -13,7 +14,7 @@ bool FieldEquals::Matches(const Event& event) const {
 
 bool FieldContains::Matches(const Event& event) const {
     const std::string* value = FindField(event, key_);
-    return value && ContainsIgnoreCase(*value, needle_);   
+    return value && ContainsIgnoreCase(*value, needle_);
 }
 
 bool FieldEndsWith::Matches(const Event& event) const {
@@ -21,7 +22,7 @@ bool FieldEndsWith::Matches(const Event& event) const {
     return value && EndsWithIgnoreCase(*value, suffix_);
 }
 
-bool FieldInList::Matches(const Event &event) const {
+bool FieldInList::Matches(const Event& event) const {
     const std::string* value = FindField(event, key_);
     if (values_.size() == 0 || !value) {
         return false;
@@ -75,5 +76,4 @@ bool AnyOf::Matches(const Event& event) const {
     return false;
 }
 
-
-}
+}  // namespace nano_edr

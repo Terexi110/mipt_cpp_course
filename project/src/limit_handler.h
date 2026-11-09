@@ -2,12 +2,13 @@
 #define NANO_EDR_LIMIT_HANDLER_H
 
 #include <cstddef>
+
 #include "event_source.h"
 
 namespace nano_edr {
 
 class LimitHandler : public IEventHandler {
-    public:
+ public:
     LimitHandler(IEventHandler* next, std::size_t max_events);
 
     void HandleEvent(const Event& event) override;
@@ -17,7 +18,7 @@ class LimitHandler : public IEventHandler {
 
     std::size_t dropped() const;
 
-    private:
+ private:
     IEventHandler* next_ = nullptr;
     std::size_t max_events_ = 0;
     std::size_t passed_ = 0;
