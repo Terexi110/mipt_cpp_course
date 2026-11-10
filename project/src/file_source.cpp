@@ -4,7 +4,6 @@
 #include <print>
 #include <stdexcept>
 
-#include "agent.h"
 #include "parse.h"
 
 namespace nano_edr {

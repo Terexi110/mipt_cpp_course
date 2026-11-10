@@ -52,14 +52,6 @@ bool SequenceRule::Check(const Event& event) {
         }
     }
 
-    std::vector<Pending> fresh;
-    for (const auto& p : pending_) {
-        if (current_ts < p.ts_ms || (current_ts - p.ts_ms <= window_ms_)) {
-            fresh.push_back(p);
-        }
-    }
-    pending_ = std::move(fresh);
-
     if (second_->Matches(event)) {
         auto it = std::find_if(pending_.begin(), pending_.end(), [&](const Pending& p) {
             return !same_pid_ || p.pid == event.pid();

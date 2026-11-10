@@ -2,7 +2,6 @@
 
 #include <cstddef>
 #include <print>
-#include <string>
 
 #include "agent_rules.h"
 #include "event.h"
