@@ -4,8 +4,10 @@
 #include <string>
 #include <vector>
 
+#include "combinators.h"
 #include "conditions.h"
 #include "event.h"
+#include "make_rule.h"
 #include "rule.h"
 #include "rules.h"
 
@@ -13,16 +15,7 @@ namespace nano_edr {
 
 namespace {
 
-
-std::unique_ptr<MatchRule> BuildScriptHostFromTempRule() {
-    auto rule = std::make_unique<MatchRule>("script_host_from_temp", Severity::kHigh);
-    rule->AddCondition(std::make_unique<EventTypeIs>(std::vector<EventType> {EventType::kProcessStart}));
-
-    auto hosts = std::make_unique<AnyOf>();
-    hosts->Add(std::make_unique<FieldEndsWith>("image", "wscript.exe"));
-    hosts->Add(std::make_unique<FieldEndsWith>("image", "cscript.exe"));
-    rule->AddCondition(std::move(hosts));
-
+std::unique_ptr<AnyOf> BuildTempPathCondition() {
     auto temp = std::make_unique<AnyOf>();
     temp->Add(std::make_unique<FieldContains>("cmdline", "\\appdata\\local\\temp\\"));
     temp->Add(std::make_unique<FieldContains>("cmdline", "/appdata/local/temp/"));
@@ -30,8 +23,20 @@ std::unique_ptr<MatchRule> BuildScriptHostFromTempRule() {
     temp->Add(std::make_unique<FieldContains>("cmdline", "/windows/temp/"));
     temp->Add(std::make_unique<FieldContains>("cmdline", "%temp%"));
     temp->Add(std::make_unique<FieldContains>("cmdline", "%tmp%"));
-    rule->AddCondition(std::move(temp));
+    return temp;
+}
 
+std::unique_ptr<MatchRule> BuildScriptHostFromTempRule() {
+    auto rule = std::make_unique<MatchRule>("script_host_from_temp", Severity::kHigh);
+    rule->AddCondition(std::make_unique<EventTypeIs>(std::vector<EventType>{EventType::kProcessStart}));
+
+    auto hosts = std::make_unique<AnyOf>();
+    hosts->Add(std::make_unique<FieldEndsWith>("image", "wscript.exe"));
+    hosts->Add(std::make_unique<FieldEndsWith>("image", "cscript.exe"));
+    rule->AddCondition(std::move(hosts));
+
+    auto temp = BuildTempPathCondition();
+    rule->AddCondition(std::move(temp));
 
     rule->AddAction("kill_process");
     return rule;
@@ -39,7 +44,7 @@ std::unique_ptr<MatchRule> BuildScriptHostFromTempRule() {
 
 std::unique_ptr<MatchRule> BuildLolbinDownloadRule() {
     auto rule = std::make_unique<MatchRule>("lolbin_download", Severity::kHigh);
-    rule->AddCondition(std::make_unique<EventTypeIs>(std::vector<EventType> {EventType::kProcessStart}));
+    rule->AddCondition(std::make_unique<EventTypeIs>(std::vector<EventType>{EventType::kProcessStart}));
 
     auto lolbins = std::make_unique<AnyOf>();
     lolbins->Add(std::make_unique<FieldEndsWith>("image", "certutil.exe"));
@@ -59,13 +64,13 @@ std::unique_ptr<MatchRule> BuildLolbinDownloadRule() {
 
 std::unique_ptr<MatchRule> BuildHiddenPowershellRule() {
     auto rule = std::make_unique<MatchRule>("hidden_powershell", Severity::kMedium);
-    rule->AddCondition(std::make_unique<EventTypeIs>(std::vector<EventType> {EventType::kProcessStart}));
+    rule->AddCondition(std::make_unique<EventTypeIs>(std::vector<EventType>{EventType::kProcessStart}));
 
     auto shells = std::make_unique<AnyOf>();
     shells->Add(std::make_unique<FieldEndsWith>("image", "powershell.exe"));
     shells->Add(std::make_unique<FieldEndsWith>("image", "pwsh.exe"));
     rule->AddCondition(std::move(shells));
-    
+
     auto args = std::make_unique<AnyOf>();
     args->Add(std::make_unique<FieldContains>("cmdline", "-windowstyle hidden"));
     args->Add(std::make_unique<FieldContains>("cmdline", "-encodedcommand"));
@@ -79,8 +84,7 @@ std::unique_ptr<MatchRule> BuildHiddenPowershellRule() {
 
 std::unique_ptr<MatchRule> BuildAutostartWritePathRule() {
     auto rule = std::make_unique<MatchRule>("autostart_write", Severity::kHigh);
-    rule->AddCondition(std::make_unique<EventTypeIs>(std::vector<EventType> 
-        {EventType::kFileCreate, EventType::kFileWrite, EventType::kFileMove}));
+    rule->AddCondition(std::make_unique<EventTypeIs>(std::vector<EventType>{EventType::kFileCreate, EventType::kFileWrite, EventType::kFileMove}));
 
     auto paths = std::make_unique<AnyOf>();
     paths->Add(std::make_unique<FieldContains>("path", "\\start menu\\programs\\startup\\"));
@@ -118,13 +122,7 @@ std::unique_ptr<SequenceRule> BuildScriptHostBeaconRule() {
     hosts->Add(std::make_unique<FieldEndsWith>("image", "cscript.exe"));
     first->Add(std::move(hosts));
 
-    auto temp = std::make_unique<AnyOf>();
-    temp->Add(std::make_unique<FieldContains>("cmdline", "\\appdata\\local\\temp\\"));
-    temp->Add(std::make_unique<FieldContains>("cmdline", "/appdata/local/temp/"));
-    temp->Add(std::make_unique<FieldContains>("cmdline", "\\windows\\temp\\"));
-    temp->Add(std::make_unique<FieldContains>("cmdline", "/windows/temp/"));
-    temp->Add(std::make_unique<FieldContains>("cmdline", "%temp%"));
-    temp->Add(std::make_unique<FieldContains>("cmdline", "%tmp%"));
+    auto temp = BuildTempPathCondition();
     first->Add(std::move(temp));
 
     beacon->SetFirst(std::move(first));
@@ -133,6 +131,24 @@ std::unique_ptr<SequenceRule> BuildScriptHostBeaconRule() {
 
     beacon->AddAction("kill_process");
     return beacon;
+}
+
+std::unique_ptr<ThresholdRule<128>> BuildThresholdRule() {
+    auto mass_write = MakeRule<ThresholdRule<128>>(
+        "ransomware_mass_write", Severity::kCritical,
+        20,
+        10000,
+        "pid");
+    mass_write->AddAction("kill_process");
+    mass_write->AddAction("quarantine_file");
+    mass_write->SetCondition(MakeCondition(AllOfStatic(
+        EventTypeIs({EventType::kFileCreate, EventType::kFileWrite,
+                     EventType::kFileMove}),
+        AnyOfStatic(FieldContains("path", "\\Documents\\"),
+                    FieldContains("path", "\\Desktop\\"),
+                    FieldContains("to", "\\Documents\\"),
+                    FieldContains("to", "\\Desktop\\")))));
+    return mass_write;
 }
 
 }  // namespace
@@ -144,7 +160,8 @@ RuleEngine BuildAgentRules() {
     engine.AddRule(BuildHiddenPowershellRule());
     engine.AddRule(BuildAutostartWritePathRule());
     engine.AddRule(BuildRansomExtensionPathRule());
-    engine.AddRule(BuildScriptHostBeaconRule()); 
+    engine.AddRule(BuildScriptHostBeaconRule());
+    engine.AddRule(BuildThresholdRule());
     return engine;
 }
 

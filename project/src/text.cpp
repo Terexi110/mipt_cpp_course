@@ -1,19 +1,19 @@
+#include "text.h"
+
 #include <algorithm>
 #include <cctype>
 #include <string>
-
-#include "text.h"
 
 namespace nano_edr {
 
 namespace {
 
-bool CharEqualsIgoneCase (char a, char b) {
+bool CharEqualsIgoneCase(char a, char b) {
     return std::tolower(static_cast<unsigned char>(a)) ==
            std::tolower(static_cast<unsigned char>(b));
 }
 
-}
+}  // namespace
 
 bool EqualsIgnoreCase(const std::string& a, const std::string& b) {
     return std::ranges::equal(a, b, CharEqualsIgoneCase);
@@ -35,8 +35,8 @@ bool EndsWithIgnoreCase(const std::string& text, const std::string& suffix) {
         return false;
     }
     return std::equal(text.end() - suffix.size(), text.end(),
-     suffix.begin(), suffix.end(),
-      CharEqualsIgoneCase);
-}   
+                      suffix.begin(), suffix.end(),
+                      CharEqualsIgoneCase);
+}
 
-} // namespace nano_edr
+}  // namespace nano_edr

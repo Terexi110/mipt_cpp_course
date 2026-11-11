@@ -1,9 +1,9 @@
-#include <fstream>
-#include <stdexcept>
-#include <print>
-
 #include "file_source.h"
-#include "agent.h"
+
+#include <fstream>
+#include <print>
+#include <stdexcept>
+
 #include "parse.h"
 
 namespace nano_edr {

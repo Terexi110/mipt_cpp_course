@@ -1,16 +1,17 @@
+#include "agent.h"
+
 #include <cstddef>
 #include <print>
-#include <string>
 
 #include "agent_rules.h"
 #include "event.h"
-#include "agent.h"
 #include "rule.h"
 #include "rules.h"
 
 namespace nano_edr {
 
-Agent::Agent(std::size_t window_size, bool quiet) : window_(window_size), engine_(BuildAgentRules()), quiet_(quiet) {}
+Agent::Agent(bool quiet)
+    : engine_(BuildAgentRules()), quiet_(quiet) {}
 
 void Agent::OnSkipped() {
     skipped_events_++;
@@ -21,7 +22,7 @@ void Agent::OnBroken() {
 }
 
 void Agent::OnTick() {
-    // 
+    //
 }
 
 void Agent::HandleEvent(const Event& event) {
@@ -32,28 +33,25 @@ void Agent::HandleEvent(const Event& event) {
     engine_.ProcessEvent(event, &fired);
 
     if (!fired.empty() && !quiet_) {
-        PrintContext(previous_event_ ? &*previous_event_ : nullptr, window_);
+        PrintContext();
     }
-    
+
     for (const IRule* rule : fired) {
         std::print("[DETECT] {}  {}  ts={} pid={}\n",
-            SeverityName(rule->severity()), rule->id(), event.raw_ts(), event.pid());
+                   SeverityName(rule->severity()), rule->id(), event.raw_ts(), event.pid());
     }
-    
-    const EventNode* last = window_.back();
-    if (last != nullptr) {
-        previous_event_ = last->event;
-    } else {
-        previous_event_.reset();
-    }
-    window_.PushBack(event);
+
+    window_.PushBack(WindowEntry{
+        .ts = event.ts(),
+        .type = event.type(),
+        .pid = event.pid(),
+    });
 }
 
 void Agent::PrintSummary() const {
     std::print("всего событий: {}\n", total_events_);
     std::print("пропущено (пустые/комментарии): {}\n", skipped_events_);
     std::print("ошибок/битых событий: {}\n", broken_events_);
-    std::print("ошибок обработки: {}\n", broken_events_);
     std::print("типы событий:\n");
     for (const auto& [type, count] : types_) {
         std::print("  {}: {}\n", type, count);
@@ -63,17 +61,18 @@ void Agent::PrintSummary() const {
         const auto& rule = engine_.rule(i);
         std::print("  {}  {}\n", rule.id(), rule.hits());
     }
+    std::print("[STAT] в окне {} из {} мест\n", window_.size(), kWindowCapacity);
 }
 
-void Agent::PrintContext(const Event* previous, const EventList& window) {
-    const EventNode* last = window.back();
-    if (previous != nullptr && window.size() > 1) {
-        std::print("[CTX] -2: ts={} type={} pid={}\n", previous->raw_ts(), previous->type(), previous->pid());
+void Agent::PrintContext() {
+    if (window_.size() >= 2) {
+        const auto& prev = window_[window_.size() - 2];
+        std::print("[CTX] -2: {} {} pid={}\n", prev.ts.ms, prev.type, prev.pid);
     }
-    if (last != nullptr) {
-        std::print("[CTX] -1: ts={} type={} pid={}\n", last->event.raw_ts(), last->event.type(), last->event.pid());
+    if (!window_.empty()) {
+        const auto& last = window_.back();
+        std::print("[CTX] -1: {} {} pid={}\n", last.ts.ms, last.type, last.pid);
     }
 }
-
 
 }  // namespace nano_edr

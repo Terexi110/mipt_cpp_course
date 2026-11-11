@@ -20,8 +20,7 @@ void LimitHandler::HandleEvent(const Event& event) {
     if (passed_ < max_events_) {
         passed_++;
         next_->HandleEvent(event);
-    }
-    else {
+    } else {
         dropped_++;
     }
 }
@@ -30,5 +29,4 @@ std::size_t LimitHandler::dropped() const {
     return dropped_;
 }
 
-}
-
+}  // namespace nano_edr
