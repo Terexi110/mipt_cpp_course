@@ -41,6 +41,8 @@ std::unique_ptr<MatchRule> BuildScriptHostFromTempRule() {
     rule->AddCondition(std::move(temp));
 
     rule->AddAction("kill_process");
+    rule->AddAction("quarantine_source");
+    rule->AddAction("delete_dropped");
     return rule;
 }
 
@@ -95,7 +97,7 @@ std::unique_ptr<MatchRule> BuildAutostartWritePathRule() {
     paths->Add(std::make_unique<FieldContains>("to", "/start menu/programs/startup/"));
     rule->AddCondition(std::move(paths));
 
-    rule->AddAction("quarantine_file");
+    rule->AddAction("delete_evidence");
     return rule;
 }
 
@@ -109,7 +111,8 @@ std::unique_ptr<MatchRule> BuildRansomExtensionPathRule() {
     paths->Add(std::make_unique<FieldEndsWith>("to", ".locked"));
     rule->AddCondition(std::move(paths));
 
-    rule->AddAction("quarantine_file");
+    rule->AddAction("kill_process");
+    rule->AddAction("quarantine_image");
     return rule;
 }
 
@@ -142,7 +145,7 @@ std::unique_ptr<ThresholdRule<128>> BuildThresholdRule() {
         10000,
         "pid");
     mass_write->AddAction("kill_process");
-    mass_write->AddAction("quarantine_file");
+    mass_write->AddAction("quarantine_image");
     mass_write->SetCondition(MakeCondition(AllOfStatic(
         EventTypeIs({EventType::kFileCreate, EventType::kFileWrite,
                      EventType::kFileMove}),
@@ -184,7 +187,8 @@ std::unique_ptr<LambdaRule> BuildSpawnedFromDroppedFileRule(const EntityModel* m
             return source != nullptr && !source->writer_pid.empty() && source->writer_pid != event.pid();
         });
     dropped->AddAction("kill_process");
-    dropped->AddAction("quarantine_file");
+    dropped->AddAction("quarantine_source");
+    dropped->AddAction("delete_dropped");
     return dropped;
 }
 

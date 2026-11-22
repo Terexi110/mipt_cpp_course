@@ -30,6 +30,7 @@
 
 #include <array>
 #include <cstddef>
+#include <utility>
 
 namespace nano_edr {
 
@@ -71,6 +72,15 @@ class RingBuffer {
             ++size_;
         }
         buffer_[(head_ + size_ - 1) % capacity()] = value;
+    }
+
+    void PushBack(T&& value) {
+        if (full()) {
+            head_ = (head_ + 1) % capacity();
+        } else {
+            ++size_;
+        }
+        buffer_[(head_ + size_ - 1) % capacity()] = std::move(value);
     }
 
     void Clear() {

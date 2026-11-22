@@ -9,6 +9,7 @@
 
 #include "agent.h"
 #include "alert_sink.h"
+#include "copy_stats.h"
 #include "edr_handle.h"
 #include "event_source.h"
 #include "field_traits.h"
@@ -22,6 +23,8 @@ struct Config {
     std::string log_path;
     std::string out;
     bool quiet = false;
+    bool dry_run = false;
+    bool copies = false;
     bool os_source = true;
     std::optional<std::size_t> max_events;
 };
@@ -29,7 +32,7 @@ struct Config {
 namespace {
 
 constexpr std::string_view kUsage =
-    "использование: nano-edr [--quiet] [--file] [--out <файл>] <журнал.log>\n";
+    "использование: nano-edr [--quiet] [--dry-run] [--copies] [--file] [--out <файл>] <журнал.log>\n";
 
 bool SetLogPath(Config& config, std::string path) {
     if (!config.log_path.empty()) {
@@ -65,6 +68,10 @@ bool ParseArgs(int argc, char** argv, Config& config) {
 
         if (arg == "--quiet") {
             config.quiet = true;
+        } else if (arg == "--dry-run") {
+            config.dry_run = true;
+        } else if (arg == "--copies") {
+            config.copies = true;
         } else if (arg == "--file") {
             const char* value = next_value("путь к файлу");
             if (value == nullptr || !SetLogPath(config, value)) {
@@ -129,6 +136,13 @@ int main(int argc, char** argv) {
             dedup_period_ms = 10000;
         }
 
+        std::unique_ptr<nano_edr::IEventSource> source;
+        if (config.os_source) {
+            source = std::make_unique<nano_edr::OsSource>(config.log_path);
+        } else {
+            source = std::make_unique<nano_edr::FileSource>(config.log_path);
+        }
+
         nano_edr::Agent agent(config.quiet, dedup_period_ms);
 
         nano_edr::FanOutSink targets;
@@ -139,19 +153,15 @@ int main(int argc, char** argv) {
         targets.Add(nano_edr::EdrSink(&edr));
         agent.Subscribe(std::move(targets));
 
-        std::unique_ptr<nano_edr::IEventSource> source;
+        agent.EnableResponse(source->os(), config.dry_run,
+                             edr.Config("quarantine_dir", "C:\\quarantine"));
+
         std::unique_ptr<nano_edr::LimitHandler> limit_handler;
         nano_edr::IEventHandler* handler = &agent;
 
         if (config.max_events.has_value()) {
             limit_handler = std::make_unique<nano_edr::LimitHandler>(handler, *config.max_events);
             handler = limit_handler.get();
-        }
-
-        if (config.os_source) {
-            source = std::make_unique<nano_edr::OsSource>(config.log_path);
-        } else {
-            source = std::make_unique<nano_edr::FileSource>(config.log_path);
         }
 
         source->Run(handler);
@@ -165,6 +175,16 @@ int main(int argc, char** argv) {
             if (limit_handler) {
                 std::print("отброшено событий: {}\n", limit_handler->dropped());
             }
+        }
+
+        if (config.copies) {
+            const nano_edr::CopyStats& stats = nano_edr::copy_stats();
+            std::print("[COPY] строк события скопировано {}, перемещено {}\n",
+                       stats.event_strings_copied, stats.event_strings_moved);
+            std::print("[COPY] записей WindowEntry скопировано {}, перемещено {}\n",
+                       stats.window_copied, stats.window_moved);
+            std::print("[COPY] событий скопировано в детекты {}\n", stats.evidence_copied);
+            std::print("[COPY] копий всего {}\n", stats.total());
         }
     } catch (const std::exception& e) {
         std::print(stderr, "ошибка: {}\n", e.what());

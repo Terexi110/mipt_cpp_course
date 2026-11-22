@@ -28,6 +28,15 @@ void Agent::Subscribe(AlertSink sink) {
     engine_.Subscribe(DedupSink(std::move(all), dedup_period_ms_, &suppressed_));
 }
 
+void Agent::EnableResponse(OsHandle* os, bool dry_run,
+                           const std::string& quarantine_dir) {
+    planner_ = std::make_unique<ResponsePlanner>(&model_, quarantine_dir);
+    responder_ = std::make_unique<Responder>(os, dry_run);
+    engine_.Subscribe([this](const Detection& detection) {
+        responder_->Execute(planner_->Plan(detection));
+    });
+}
+
 void Agent::OnSkipped() {
     skipped_events_++;
 }
@@ -46,15 +55,24 @@ void Agent::HandleEvent(const Event& event) {
     types_[event.type()]++;
     total_events_++;
 
+    if (responder_ != nullptr && responder_->Recognize(event)) {
+        PushToWindow(event);
+        return;
+    }
+
     context_printed_for_event_ = false;
 
     engine_.ProcessEvent(event, nullptr);
 
-    window_.PushBack({
-        .ts = event.ts(),
-        .type = event.type(),
-        .pid = event.pid(),
-    });
+    PushToWindow(event);
+}
+
+void Agent::PushToWindow(const Event& event) {
+    WindowEntry entry;
+    entry.ts = event.ts();
+    entry.type = event.type();
+    entry.pid = event.pid();
+    window_.PushBack(std::move(entry));
 }
 
 void Agent::PrintContextOnce() {
@@ -87,6 +105,16 @@ void Agent::PrintSummary() const {
     }
     std::print("[STAT] в окне {} из {} мест\n", window_.size(), kWindowCapacity);
     std::print("[STAT] в модели процессов {}, файлов {}\n", model_.process_count(), model_.file_count());
+    if (responder_ != nullptr) {
+        const ResponseStats& stats = responder_->stats();
+        std::print("[STAT] действий запланировано {}, повторов отброшено {}\n",
+                   stats.planned, stats.skipped_repeat);
+        std::print("[STAT] завершено процессов {}, изолировано файлов {}, удалено файлов {}\n",
+                   stats.killed, stats.quarantined, stats.deleted);
+        if (stats.own_events > 0) {
+            std::print("[STAT] своих событий {}\n", stats.own_events);
+        }
+    }
     if (suppressed_ > 0) {
         std::print("[STAT] подавлено дубликатов {} (срок {} мс)\n", suppressed_, dedup_period_ms_);
     }

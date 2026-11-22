@@ -3,6 +3,7 @@
 #include <print>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #include "event.h"
 #include "event_source.h"
@@ -23,7 +24,7 @@ Event MakeEventFromOs(const os_event* ev) {
     for (size_t i = 0; i < ev->field_count; ++i) {
         parts.fields.push_back(Field{ev->fields[i].key, ev->fields[i].value});
     }
-    return Event(parts);
+    return Event(std::move(parts));
 }
 
 }  // namespace
