@@ -12,7 +12,9 @@ class OsSource : public IEventSource {
  public:
     explicit OsSource(const std::string& config_path);
 
-    void Run(IEventHandler* agent);
+    void Run(IEventHandler* agent) override;
+
+    OsHandle* os() override { return &handle_; }
 
     static void Trampoline(const os_event* ev, void* ctx) noexcept;
 

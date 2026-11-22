@@ -3,6 +3,7 @@
 #include <fstream>
 #include <print>
 #include <stdexcept>
+#include <utility>
 
 #include "parse.h"
 
@@ -32,7 +33,7 @@ void FileSource::Run(IEventHandler* agent) {
             continue;
         }
         try {
-            Event event(parts);
+            Event event(std::move(parts));
             agent->HandleEvent(event);
         } catch (const std::exception& e) {
             std::print(stderr, "ошибка обработки события: {}\n", e.what());
